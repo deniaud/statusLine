@@ -482,7 +482,14 @@ pub fn collect_all_segments(
                     .get("show_sha")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
-                let segment = GitSegment::new().with_sha(show_sha);
+                let show_dirty_count = segment_config
+                    .options
+                    .get("show_dirty_count")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let segment = GitSegment::new()
+                    .with_sha(show_sha)
+                    .with_dirty_count(show_dirty_count);
                 segment.collect(input)
             }
             crate::config::SegmentId::ContextWindow => {
