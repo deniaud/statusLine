@@ -71,17 +71,12 @@ impl App {
             eprintln!("Warning: Failed to initialize themes: {}", e);
         }
 
-        // Load config
-        let mut config = Config::load().unwrap_or_else(|_| Config::default());
-
-        // If a theme is specified, reload it to get the latest changes
-        if !config.theme.is_empty() && config.theme != "default" {
-            if let Ok(theme_config) =
-                crate::ui::themes::ThemePresets::load_theme_from_file(&config.theme)
-            {
-                config = theme_config;
-            }
-        }
+        // Load config - use saved config.toml as the source of truth,
+        // only falling back to theme defaults if no config exists
+        let config = match Config::load() {
+            Ok(c) => c,
+            Err(_) => Config::default(),
+        };
 
         // Terminal setup
         enable_raw_mode()?;
