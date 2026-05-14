@@ -1,6 +1,7 @@
 pub mod cli;
 pub mod config;
 pub mod core;
+pub mod installer;
 pub mod ui;
 pub mod updater;
 pub mod utils;
