@@ -92,6 +92,7 @@ pub fn git_segment() -> SegmentConfig {
         options: {
             let mut opts = HashMap::new();
             opts.insert("show_sha".to_string(), serde_json::Value::Bool(false));
+            opts.insert("show_dirty_count".to_string(), serde_json::Value::Bool(true));
             opts
         },
     }
