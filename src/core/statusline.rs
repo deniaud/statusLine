@@ -332,6 +332,16 @@ impl StatusLineGenerator {
             self.get_icon(config)
         };
 
+        // A segment may publish a `dynamic_text_color` (c16 index 0..15) in its
+        // metadata to override the configured text color for this render only —
+        // used e.g. by context_window to fade toward red as the limit nears.
+        let dynamic_text_color: Option<AnsiColor> = data
+            .metadata
+            .get("dynamic_text_color")
+            .and_then(|s| s.parse::<u8>().ok())
+            .map(|c16| AnsiColor::Color16 { c16 });
+        let text_color = dynamic_text_color.as_ref().or(config.colors.text.as_ref());
+
         // Apply background color to the entire segment if set
         if let Some(bg_color) = &config.colors.background {
             let bg_code = self.apply_background_color(bg_color);
@@ -345,22 +355,14 @@ impl StatusLineGenerator {
             };
 
             let text_styled = self
-                .apply_style(
-                    &data.primary,
-                    config.colors.text.as_ref(),
-                    config.styles.text_bold,
-                )
+                .apply_style(&data.primary, text_color, config.styles.text_bold)
                 .replace("\x1b[0m", "");
 
             let mut segment_content = format!(" {} {} ", icon_colored, text_styled);
 
             if !data.secondary.is_empty() {
                 let secondary_styled = self
-                    .apply_style(
-                        &data.secondary,
-                        config.colors.text.as_ref(),
-                        config.styles.text_bold,
-                    )
+                    .apply_style(&data.secondary, text_color, config.styles.text_bold)
                     .replace("\x1b[0m", "");
                 segment_content.push_str(&format!("{} ", secondary_styled));
             }
@@ -370,22 +372,14 @@ impl StatusLineGenerator {
         } else {
             // No background color, use original logic
             let icon_colored = self.apply_color(&icon, config.colors.icon.as_ref());
-            let text_styled = self.apply_style(
-                &data.primary,
-                config.colors.text.as_ref(),
-                config.styles.text_bold,
-            );
+            let text_styled = self.apply_style(&data.primary, text_color, config.styles.text_bold);
 
             let mut segment = format!("{} {}", icon_colored, text_styled);
 
             if !data.secondary.is_empty() {
                 segment.push_str(&format!(
                     " {}",
-                    self.apply_style(
-                        &data.secondary,
-                        config.colors.text.as_ref(),
-                        config.styles.text_bold
-                    )
+                    self.apply_style(&data.secondary, text_color, config.styles.text_bold)
                 ));
             }
 
