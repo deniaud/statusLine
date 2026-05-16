@@ -63,7 +63,7 @@ impl Segment for ContextWindowSegment {
                 let remaining = context_limit.saturating_sub(used);
                 let remaining_percent = (remaining as f64 / context_limit as f64) * 100.0;
                 (
-                    format!("{} / {} tokens", format_k(remaining), limit_display),
+                    format!("{} / {} tokens", format_k(used), limit_display),
                     Some(remaining_percent),
                 )
             }
