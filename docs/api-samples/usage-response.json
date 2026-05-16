@@ -1,0 +1,17 @@
+{
+  "five_hour": {
+    "utilization": 22.0,
+    "resets_at": "2026-05-13T20:00:00Z"
+  },
+  "seven_day": {
+    "utilization": 26.0,
+    "resets_at": "2026-05-20T15:00:00Z"
+  },
+  "seven_day_sonnet": {
+    "utilization": 19.0,
+    "resets_at": "2026-05-20T15:00:00Z"
+  },
+  "seven_day_opus": null,
+  "model": "claude-sonnet-4-6",
+  "remaining_seconds": 14400
+}
