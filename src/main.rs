@@ -41,6 +41,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Load configuration
     let mut config = Config::load().unwrap_or_else(|_| Config::default());
 
+    // Self-install: copy binary + configure Claude Code statusLine
+    if cli.install {
+        ccometixline::installer::install()?;
+        return Ok(());
+    }
+
+    // Doctor: report installation health
+    if cli.doctor {
+        let ok = ccometixline::installer::doctor()?;
+        std::process::exit(if ok { 0 } else { 1 });
+    }
+
     // Apply theme override if provided
     if let Some(theme) = cli.theme {
         config = ccometixline::ui::themes::ThemePresets::get_theme(&theme);

@@ -15,6 +15,14 @@ pub struct Cli {
     /// Patch Claude Code cli.js to disable context warnings
     #[arg(long = "patch")]
     pub patch: Option<String>,
+
+    /// Install ccline as Claude Code statusline (copies binary + patches settings.json)
+    #[arg(long = "install")]
+    pub install: bool,
+
+    /// Verify ccline integration health (binary, settings, transcripts)
+    #[arg(long = "doctor")]
+    pub doctor: bool,
 }
 
 impl Cli {
