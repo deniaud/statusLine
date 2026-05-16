@@ -9,12 +9,21 @@ use std::collections::HashMap;
 struct ApiUsageResponse {
     five_hour: UsagePeriod,
     seven_day: UsagePeriod,
+    // Forward compatibility: capture any unknown top-level fields (e.g. new
+    // per-model weekly windows that Anthropic may add). Consumed by tests and
+    // future feature work (T06).
+    #[serde(flatten)]
+    #[allow(dead_code)]
+    extra: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
 struct UsagePeriod {
     utilization: f64,
     resets_at: Option<String>,
+    #[serde(flatten)]
+    #[allow(dead_code)]
+    extra: HashMap<String, serde_json::Value>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -271,5 +280,196 @@ impl Segment for UsageSegment {
 
     fn id(&self) -> SegmentId {
         SegmentId::Usage
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---------- get_circle_icon boundaries ----------
+    //
+    // The eight glyphs map to these percent ranges:
+    //   0..=12  → slice_1 (f0a9e)
+    //   13..=25 → slice_2 (f0a9f)
+    //   26..=37 → slice_3 (f0aa0)
+    //   38..=50 → slice_4 (f0aa1)
+    //   51..=62 → slice_5 (f0aa2)
+    //   63..=75 → slice_6 (f0aa3)
+    //   76..=87 → slice_7 (f0aa4)
+    //   88..    → slice_8 (f0aa5)
+    //
+    // Input is utilization in 0.0..=1.0 (the segment passes `seven_day_util / 100.0`).
+
+    #[track_caller]
+    fn assert_icon(util_fraction: f64, expected_codepoint: &str) {
+        let actual = UsageSegment::get_circle_icon(util_fraction);
+        assert_eq!(
+            actual, expected_codepoint,
+            "for utilization {} expected {:?} got {:?}",
+            util_fraction, expected_codepoint, actual
+        );
+    }
+
+    #[test]
+    fn circle_icon_slice_1_low_boundary() {
+        assert_icon(0.0, "\u{f0a9e}");
+        assert_icon(0.12, "\u{f0a9e}");
+    }
+
+    #[test]
+    fn circle_icon_slice_2_boundary() {
+        assert_icon(0.13, "\u{f0a9f}");
+        assert_icon(0.25, "\u{f0a9f}");
+    }
+
+    #[test]
+    fn circle_icon_slice_3_boundary() {
+        assert_icon(0.26, "\u{f0aa0}");
+        assert_icon(0.37, "\u{f0aa0}");
+    }
+
+    #[test]
+    fn circle_icon_slice_4_boundary() {
+        assert_icon(0.38, "\u{f0aa1}");
+        assert_icon(0.50, "\u{f0aa1}");
+    }
+
+    #[test]
+    fn circle_icon_slice_5_boundary() {
+        assert_icon(0.51, "\u{f0aa2}");
+        assert_icon(0.62, "\u{f0aa2}");
+    }
+
+    #[test]
+    fn circle_icon_slice_6_boundary() {
+        assert_icon(0.63, "\u{f0aa3}");
+        assert_icon(0.75, "\u{f0aa3}");
+    }
+
+    #[test]
+    fn circle_icon_slice_7_boundary() {
+        assert_icon(0.76, "\u{f0aa4}");
+        assert_icon(0.87, "\u{f0aa4}");
+    }
+
+    #[test]
+    fn circle_icon_slice_8_high_boundary() {
+        assert_icon(0.88, "\u{f0aa5}");
+        assert_icon(1.00, "\u{f0aa5}");
+    }
+
+    // ---------- format_reset_time ----------
+    //
+    // Note: the function converts to Local timezone, so any test asserting the
+    // exact month/day/hour string is environment-dependent. We pin only the
+    // structural invariants and the None/malformed branches.
+
+    #[test]
+    fn format_reset_time_none_returns_placeholder() {
+        assert_eq!(UsageSegment::format_reset_time(None), "?");
+    }
+
+    #[test]
+    fn format_reset_time_malformed_returns_placeholder() {
+        assert_eq!(UsageSegment::format_reset_time(Some("not a date")), "?");
+        assert_eq!(UsageSegment::format_reset_time(Some("")), "?");
+        assert_eq!(UsageSegment::format_reset_time(Some("2026-13-99")), "?");
+    }
+
+    // ---------- ApiUsageResponse / UsagePeriod forward-compat ----------
+    //
+    // T01: the Anthropic usage API may grow new fields (weekly Sonnet, weekly
+    // Opus, etc.). Our deserializer must accept unknown fields and preserve
+    // them in `extra` so feature work can introspect them without a schema
+    // bump.
+
+    #[test]
+    fn api_usage_response_preserves_unknown_top_level_fields() {
+        let json = r#"{
+            "five_hour":   { "utilization": 12.5, "resets_at": "2026-05-13T20:00:00Z" },
+            "seven_day":   { "utilization": 45.0, "resets_at": "2026-05-20T00:00:00Z" },
+            "weekly_opus": { "utilization": 8.0,  "resets_at": "2026-05-20T00:00:00Z" },
+            "future_field": "anything"
+        }"#;
+
+        let parsed: ApiUsageResponse =
+            serde_json::from_str(json).expect("parse should succeed with extras present");
+
+        assert_eq!(parsed.five_hour.utilization, 12.5);
+        assert_eq!(parsed.seven_day.utilization, 45.0);
+        assert!(
+            parsed.extra.contains_key("weekly_opus"),
+            "expected weekly_opus in extra, got keys: {:?}",
+            parsed.extra.keys().collect::<Vec<_>>()
+        );
+        assert!(parsed.extra.contains_key("future_field"));
+    }
+
+    #[test]
+    fn usage_period_preserves_unknown_fields() {
+        let json = r#"{
+            "utilization": 50.0,
+            "resets_at": "2026-05-13T20:00:00Z",
+            "model": "opus",
+            "remaining_seconds": 3600
+        }"#;
+
+        let parsed: UsagePeriod =
+            serde_json::from_str(json).expect("parse should succeed with extras present");
+
+        assert_eq!(parsed.utilization, 50.0);
+        assert!(parsed.extra.contains_key("model"));
+        assert!(parsed.extra.contains_key("remaining_seconds"));
+    }
+
+    #[test]
+    fn api_usage_response_parses_real_world_sample() {
+        // Real (redacted) response captured 2026-05-13 via examples/probe_usage.
+        // The API returns more than the historically-known shape — extras live
+        // in `.extra` thanks to #[serde(flatten)].
+        let sample = include_str!("../../../docs/api-samples/usage-response.json");
+        let parsed: ApiUsageResponse =
+            serde_json::from_str(sample).expect("real sample must parse");
+
+        assert_eq!(parsed.five_hour.utilization, 22.0);
+        assert_eq!(parsed.seven_day.utilization, 26.0);
+
+        // The known-but-currently-unhandled per-model field is captured.
+        assert!(
+            parsed.extra.contains_key("seven_day_sonnet"),
+            "seven_day_sonnet must land in extra for future T06 work"
+        );
+        // seven_day_opus is present in the schema but `null` in this sample.
+        assert!(parsed.extra.contains_key("seven_day_opus"));
+    }
+
+    #[test]
+    fn api_usage_response_known_fields_still_parse_when_extras_absent() {
+        // Regression guard: forward-compat must not break the current canonical shape.
+        let json = r#"{
+            "five_hour": { "utilization": 23.0, "resets_at": null },
+            "seven_day": { "utilization": 67.0, "resets_at": null }
+        }"#;
+        let parsed: ApiUsageResponse = serde_json::from_str(json).expect("parse");
+        assert_eq!(parsed.five_hour.utilization, 23.0);
+        assert_eq!(parsed.seven_day.utilization, 67.0);
+        assert!(parsed.extra.is_empty());
+    }
+
+    #[test]
+    fn format_reset_time_valid_rfc3339_has_month_day_hour_shape() {
+        let out = UsageSegment::format_reset_time(Some("2026-05-13T15:30:00Z"));
+        // Format is "{month}-{day}-{hour}" — three dash-separated numeric segments.
+        let parts: Vec<&str> = out.split('-').collect();
+        assert_eq!(parts.len(), 3, "expected 3 parts in {:?}", out);
+        for p in &parts {
+            assert!(
+                p.parse::<u32>().is_ok(),
+                "part {:?} of {:?} is not numeric",
+                p,
+                out
+            );
+        }
     }
 }
