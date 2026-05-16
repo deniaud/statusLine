@@ -260,25 +260,33 @@ impl NormalizedUsage {
 }
 
 impl Config {
-    /// Check if current config matches the specified theme preset
+    /// Check if current config matches the specified theme preset by name.
+    ///
+    /// Note: `ThemePresets::get_theme` reads `~/.claude/ccline/themes/<name>.toml`
+    /// from disk before falling back to built-in presets. The pure structural
+    /// comparison lives in [`Self::matches_preset`] — use that directly in tests
+    /// to avoid depending on the host's `$HOME`.
     pub fn matches_theme(&self, theme_name: &str) -> bool {
         let theme_preset = crate::ui::themes::ThemePresets::get_theme(theme_name);
+        self.matches_preset(&theme_preset)
+    }
 
+    /// Pure structural comparison between this config and an in-memory preset.
+    /// Does not touch the filesystem.
+    pub fn matches_preset(&self, preset: &Config) -> bool {
         // Compare style config
-        if self.style.mode != theme_preset.style.mode
-            || self.style.separator != theme_preset.style.separator
-        {
+        if self.style.mode != preset.style.mode || self.style.separator != preset.style.separator {
             return false;
         }
 
         // Compare segments count and order
-        if self.segments.len() != theme_preset.segments.len() {
+        if self.segments.len() != preset.segments.len() {
             return false;
         }
 
         // Compare each segment config
-        for (current, preset) in self.segments.iter().zip(theme_preset.segments.iter()) {
-            if !self.segment_matches(current, preset) {
+        for (current, preset_seg) in self.segments.iter().zip(preset.segments.iter()) {
+            if !self.segment_matches(current, preset_seg) {
                 return false;
             }
         }
@@ -571,41 +579,51 @@ mod tests {
         assert!(n.raw_data_available.contains(&"output_tokens".to_string()));
     }
 
-    // ---------- Config::matches_theme ----------
+    // ---------- Config::matches_preset ----------
+    //
+    // These compare against in-memory presets via `matches_preset`. Using
+    // `matches_theme` here would be flaky: `ThemePresets::get_theme` tries to
+    // load `~/.claude/ccline/themes/<name>.toml` before falling back to the
+    // built-in preset, so the test would depend on the host's `$HOME`.
+
+    use crate::ui::themes::ThemePresets;
 
     #[test]
-    fn default_config_matches_default_theme() {
+    fn default_config_matches_default_preset() {
         let cfg = Config::default();
-        assert!(cfg.matches_theme("default"));
-        assert!(!cfg.is_modified_from_theme());
+        let preset = ThemePresets::get_default();
+        assert!(cfg.matches_preset(&preset));
     }
 
     #[test]
-    fn default_config_does_not_match_cometix_theme() {
+    fn default_config_does_not_match_cometix_preset() {
         let cfg = Config::default();
-        assert!(!cfg.matches_theme("cometix"));
+        let preset = ThemePresets::get_cometix();
+        assert!(!cfg.matches_preset(&preset));
     }
 
     #[test]
     fn config_with_dropped_segment_does_not_match() {
         let mut cfg = Config::default();
         cfg.segments.pop();
-        assert!(!cfg.matches_theme("default"));
+        let preset = ThemePresets::get_default();
+        assert!(!cfg.matches_preset(&preset));
     }
 
     #[test]
     fn config_with_mutated_style_mode_does_not_match() {
         let mut cfg = Config::default();
         cfg.style.mode = StyleMode::Powerline;
-        assert!(!cfg.matches_theme("default"));
-        assert!(cfg.is_modified_from_theme());
+        let preset = ThemePresets::get_default();
+        assert!(!cfg.matches_preset(&preset));
     }
 
     #[test]
     fn config_with_mutated_separator_does_not_match() {
         let mut cfg = Config::default();
         cfg.style.separator = "###".to_string();
-        assert!(!cfg.matches_theme("default"));
+        let preset = ThemePresets::get_default();
+        assert!(!cfg.matches_preset(&preset));
     }
 
     #[test]
@@ -614,6 +632,7 @@ mod tests {
         if let Some(first) = cfg.segments.first_mut() {
             first.enabled = !first.enabled;
         }
-        assert!(!cfg.matches_theme("default"));
+        let preset = ThemePresets::get_default();
+        assert!(!cfg.matches_preset(&preset));
     }
 }

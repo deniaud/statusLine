@@ -7,7 +7,11 @@ use std::path::{Path, PathBuf};
 pub fn install() -> Result<(), Box<dyn std::error::Error>> {
     let home = dirs::home_dir().ok_or("cannot find home directory")?;
     let ccline_dir = home.join(".claude").join("ccline");
-    let bin_name = if cfg!(windows) { "ccline.exe" } else { "ccline" };
+    let bin_name = if cfg!(windows) {
+        "ccline.exe"
+    } else {
+        "ccline"
+    };
     let target = ccline_dir.join(bin_name);
 
     std::fs::create_dir_all(&ccline_dir)?;
@@ -75,7 +79,11 @@ fn update_settings(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
 pub fn doctor() -> Result<bool, Box<dyn std::error::Error>> {
     let home = dirs::home_dir().ok_or("cannot find home directory")?;
     let ccline_dir = home.join(".claude").join("ccline");
-    let bin_name = if cfg!(windows) { "ccline.exe" } else { "ccline" };
+    let bin_name = if cfg!(windows) {
+        "ccline.exe"
+    } else {
+        "ccline"
+    };
     let bin_path = ccline_dir.join(bin_name);
     let settings_path = home.join(".claude").join("settings.json");
     let projects_dir = home.join(".claude").join("projects");
@@ -94,11 +102,7 @@ pub fn doctor() -> Result<bool, Box<dyn std::error::Error>> {
 
     if bin_path.is_file() {
         let size = std::fs::metadata(&bin_path)?.len();
-        println!(
-            "✓ Binary present: {} ({} bytes)",
-            bin_path.display(),
-            size
-        );
+        println!("✓ Binary present: {} ({} bytes)", bin_path.display(), size);
     } else {
         println!("✗ Binary missing — run `ccline --install`");
         all_ok = false;
@@ -154,6 +158,10 @@ pub fn doctor() -> Result<bool, Box<dyn std::error::Error>> {
 #[allow(dead_code)]
 pub fn target_binary_path() -> Option<PathBuf> {
     let home = dirs::home_dir()?;
-    let bin = if cfg!(windows) { "ccline.exe" } else { "ccline" };
+    let bin = if cfg!(windows) {
+        "ccline.exe"
+    } else {
+        "ccline"
+    };
     Some(home.join(".claude").join("ccline").join(bin))
 }

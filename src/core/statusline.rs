@@ -80,10 +80,7 @@ impl StatusLineGenerator {
     }
 
     /// Generate wrapped lines of segments respecting max_width.
-    fn generate_lines(
-        &self,
-        segments: Vec<(SegmentConfig, SegmentData)>,
-    ) -> Vec<String> {
+    fn generate_lines(&self, segments: Vec<(SegmentConfig, SegmentData)>) -> Vec<String> {
         let max_w = self.max_width.unwrap_or(0);
         if max_w == 0 {
             return vec![self.generate(segments)];
