@@ -73,10 +73,7 @@ impl App {
 
         // Load config - use saved config.toml as the source of truth,
         // only falling back to theme defaults if no config exists
-        let config = match Config::load() {
-            Ok(c) => c,
-            Err(_) => Config::default(),
-        };
+        let config = Config::load().unwrap_or_default();
 
         // Terminal setup
         enable_raw_mode()?;
